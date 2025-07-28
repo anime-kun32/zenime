@@ -121,33 +121,13 @@ export const useWatch = (animeId, initialEpisodeId) => {
         );
         const savedServerName = localStorage.getItem("server_name");
         const savedServerType = localStorage.getItem("server_type");
-        let initialServer;
-        initialServer = data.find(
-          (server) =>
-            server.serverName === savedServerName &&
-            server.type === savedServerType
-        );
-        if (!initialServer) {
-          initialServer = data.find(
-            (server) =>
-              server.serverName === savedServerName &&
-              server.type !== savedServerType
-          );
-        }
-        if (!initialServer) {
-          initialServer =
-            data.find(
-              (server) =>
-                server.type === savedServerType && server.serverName === "HD-1"
-            ) ||
-            data.find(
-              (server) =>
-                server.type === savedServerType && server.serverName === "HD-2"
-            );
-        }
-        if (!initialServer) {
-          initialServer = filteredServers[0];
-        }
+         const initialServer =
+          filteredServers.find(s => 
+            (s.serverName === savedServerName && s.type === savedServerType) ||
+            (s.serverName === savedServerName) ||
+            (s.type === savedServerType) ||
+            (["HD-1", "HD-2"].includes(s.serverName) && s.type === savedServerType)
+          ) || filteredServers[0];
         setServers(filteredServers);
         setActiveServerId(initialServer?.data_id);
       } catch (error) {
