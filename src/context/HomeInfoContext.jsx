@@ -11,6 +11,7 @@ export const HomeInfoProvider = ({ children }) => {
     const [homeInfoLoading, setHomeInfoLoading] = useState(!homeInfo);
     const [error, setError] = useState(null);
     useEffect(() => {
+        if (homeInfo) return;
         const fetchHomeInfo = async () => {
             try {
                 const data = await getHomeInfo();
