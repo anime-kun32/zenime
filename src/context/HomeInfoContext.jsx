@@ -4,8 +4,11 @@ import getHomeInfo from '../utils/getHomeInfo.utils.js';
 const HomeInfoContext = createContext();
 
 export const HomeInfoProvider = ({ children }) => {
-    const [homeInfo, setHomeInfo] = useState(null);
-    const [homeInfoLoading, setHomeInfoLoading] = useState(true);
+    const [homeInfo, setHomeInfo] = useState(() => {
+    const cached = localStorage.getItem("homeInfo");
+    return cached ? JSON.parse(cached) : null;
+    });
+    const [homeInfoLoading, setHomeInfoLoading] = useState(!homeInfo);
     const [error, setError] = useState(null);
     useEffect(() => {
         const fetchHomeInfo = async () => {

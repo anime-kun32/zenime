@@ -89,7 +89,7 @@ function Category({ path, label }) {
             </div>
           )}
           <div className="w-full flex flex-col gap-y-10">
-            {homeInfoLoading ? (
+            {homeInfoLoading && !homeInfo ? (
               <SidecardLoader />
             ) : (
               <>
