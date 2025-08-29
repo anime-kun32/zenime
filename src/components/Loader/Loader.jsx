@@ -3,6 +3,7 @@ import HomeLoader from "./Home.loader";
 import CategoryLoader from "./Category.loader";
 import AtoZLoader from "./AtoZ.loader";
 import ProducerLoader from "./Producer.loader";
+import CategoryCardLoader from "./CategoryCard.loader";
 
 const Loader = ({ type }) => {
   switch (type) {
@@ -12,6 +13,8 @@ const Loader = ({ type }) => {
       return <AnimeInfoLoader />;
     case "category":
       return <CategoryLoader />;
+    case "categoryCard":
+      return <CategoryCardLoader />;
     case "producer":
       return <ProducerLoader />;
     case "AtoZ":
