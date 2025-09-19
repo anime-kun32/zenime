@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import Artplayer from "artplayer";
@@ -32,15 +33,15 @@ Artplayer.LOG_VERSION = false;
 Artplayer.CONTEXTMENU = false;
 
 const KEY_CODES = {
-  M: "m",
-  I: "i",
-  F: "f",
-  V: "v",
-  SPACE: " ",
-  ARROW_UP: "arrowup",
-  ARROW_DOWN: "arrowdown",
-  ARROW_RIGHT: "arrowright",
-  ARROW_LEFT: "arrowleft",
+  M: "KeyM",
+  I: "KeyI",
+  F: "KeyF",
+  V: "KeyV",
+  SPACE: "Space",
+  ARROW_UP: "ArrowUp",
+  ARROW_DOWN: "ArrowDown",
+  ARROW_RIGHT: "ArrowRight",
+  ARROW_LEFT: "ArrowLeft",
 };
 
 export default function Player({
@@ -60,6 +61,8 @@ export default function Player({
   streamInfo,
 }) {
   const artRef = useRef(null);
+  const leftAtRef = useRef(0);
+  const boundKeydownRef = useRef(null); 
   const proxy = import.meta.env.VITE_PROXY_URL;
   const m3u8proxy = import.meta.env.VITE_M3U8_PROXY_URL?.split(",") || [];
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(
@@ -76,6 +79,7 @@ export default function Player({
       setCurrentEpisodeIndex(newIndex);
     }
   }, [episodeId, episodes]);
+
   useEffect(() => {
     const applyChapterStyles = () => {
       const existingStyles = document.querySelectorAll(
@@ -108,20 +112,15 @@ export default function Player({
 
       art.on("destroy", () => hls.destroy());
 
-      // hls.on(Hls.Events.ERROR, (event, data) => {
-      //   console.error("HLS.js error:", data);
-      // });
       video.addEventListener("timeupdate", () => {
         const currentTime = Math.round(video.currentTime);
         const duration = Math.round(video.duration);
-        if (duration > 0) {
-          if (currentTime >= duration) {
-            art.pause();
-            if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
-              playNext(
-                episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
-              );
-            }
+        if (duration > 0 && currentTime >= duration) {
+          art.pause();
+          if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
+            playNext(
+              episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
+            );
           }
         }
       });
@@ -130,14 +129,12 @@ export default function Player({
       video.addEventListener("timeupdate", () => {
         const currentTime = Math.round(video.currentTime);
         const duration = Math.round(video.duration);
-        if (duration > 0) {
-          if (currentTime >= duration) {
-            art.pause();
-            if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
-              playNext(
-                episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
-              );
-            }
+        if (duration > 0 && currentTime >= duration) {
+          art.pause();
+          if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
+            playNext(
+              episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
+            );
           }
         }
       });
@@ -158,11 +155,13 @@ export default function Player({
   };
 
   const handleKeydown = (event, art) => {
-    const tagName = event.target.tagName.toLowerCase();
+    const target = event.target;
+    const tagName = target?.tagName?.toLowerCase();
+    const isEditable = target?.isContentEditable;
 
-    if (tagName === "input" || tagName === "textarea") return;
+    if (tagName === "input" || tagName === "textarea" || isEditable) return;
 
-    switch (event.key.toLowerCase()) {
+    switch (event.code) {
       case KEY_CODES.M:
         art.muted = !art.muted;
         break;
@@ -211,20 +210,18 @@ export default function Player({
 
   useEffect(() => {
     if (!streamUrl || !artRef.current) return;
+
     const iframeUrl = streamInfo?.streamingLink?.iframe;
-    const headers = {};
-    if (iframeUrl) {
-      const url = new URL(iframeUrl);
-      headers.Referer = url.origin + "/";
-    } else {
-      headers.Referer = "https://megacloud.club/";
-    }
+    const headers = {
+      referer: new URL(iframeUrl).origin + "/",
+    };
+
     const art = new Artplayer({
       url:
         m3u8proxy[Math.floor(Math.random() * m3u8proxy?.length)] +
         encodeURIComponent(streamUrl) +
-         "&headers=" +
-         encodeURIComponent(JSON.stringify(headers)),
+        "&headers=" +
+        encodeURIComponent(JSON.stringify(headers)),
       container: artRef.current,
       type: "m3u8",
       autoplay: autoPlay,
@@ -242,8 +239,8 @@ export default function Player({
       fastForward: true,
       aspectRatio: true,
       moreVideoAttr: {
-        crossOrigin: 'anonymous',
-        preload: 'none',
+        crossOrigin: "anonymous",
+        preload: "none",
         playsInline: true,
       },
       plugins: [
@@ -260,15 +257,11 @@ export default function Player({
       ],
       subtitle: {
         style: {
+          color: "#fff",
           "font-weight": "400",
-          height: "fit-content",
-          minWidth: "fit-content",
-          marginInline: "auto",
-          "margin-top": "auto",
-          "margin-bottom": "2rem",
           left: "50%",
           transform: "translateX(-50%)",
-          color: "#fff",
+          "margin-bottom": "2rem",
         },
         escape: false,
       },
@@ -296,20 +289,12 @@ export default function Player({
             transform: "translateX(-50%)",
           },
           disable: !Artplayer.utils.isMobile,
-          click: function () {
-            art.toggle();
-          },
+          click: () => art.toggle(),
         },
         {
           name: "rewind",
           html: "",
-          style: {
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "40%",
-            height: "100%",
-          },
+          style: { position: "absolute", left: 0, top: 0, width: "40%", height: "100%" },
           disable: !Artplayer.utils.isMobile,
           click: () => {
             art.controls.show = !art.controls.show;
@@ -318,13 +303,7 @@ export default function Player({
         {
           name: "forward",
           html: "",
-          style: {
-            position: "absolute",
-            right: 0,
-            top: 0,
-            width: "40%",
-            height: "100%",
-          },
+          style: { position: "absolute", right: 0, top: 0, width: "40%", height: "100%" },
           disable: !Artplayer.utils.isMobile,
           click: () => {
             art.controls.show = !art.controls.show;
@@ -387,90 +366,71 @@ export default function Player({
         fullscreenOn: fullScreenOnIcon,
         fullscreenOff: fullScreenOffIcon,
       },
-      customType: {
-        m3u8: playM3u8,
-      },
+      customType: { m3u8: playM3u8 },
     });
 
     art.on("resize", () => {
       art.subtitle.style({
-        fontSize:
-          (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
+        fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
       });
     });
+
     art.on("ready", () => {
+      const continueWatchingList = JSON.parse(localStorage.getItem("continueWatching")) || [];
+      const currentEntry = continueWatchingList.find((item) => item.episodeId === episodeId);
+      if (currentEntry?.leftAt) art.currentTime = currentEntry.leftAt;
+
+      art.on("video:timeupdate", () => {
+        leftAtRef.current = Math.floor(art.currentTime);
+      });
+
       setTimeout(() => {
         art.layers[website_name].style.opacity = 0;
       }, 2000);
-      const ranges = [
-        ...(intro.start != null && intro.end != null
-          ? [[intro.start + 1, intro.end - 1]]
-          : []),
-        ...(outro.start != null && outro.end != null
-          ? [[outro.start + 1, outro.end]]
-          : []),
-      ];
-      document.addEventListener("keydown", (event) =>
-        handleKeydown(event, art)
-      );
-      art.subtitle.style({
-        fontSize:
-          (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
-      });
-      thumbnail &&
-        art.plugins.add(
-          artplayerPluginVttThumbnail({
-            vtt: `${proxy}${thumbnail}`,
-          })
-        );
-      const defaultEnglishSub =
-        subtitles.find(
-          (sub) => sub.label.toLowerCase() === "english" && sub.default
-        ) || subtitles.find((sub) => sub.label.toLowerCase() === "english");
-      subtitles &&
-        subtitles.length > 0 &&
-        art.setting.add({
-          name: "captions",
-          icon: captionIcon,
-          html: "Subtitle",
-          tooltip:
-            subtitles.find((sub) => sub.label.toLowerCase() === "english")
-              ?.label || "default",
-          position: "right",
-          selector: [
-            {
-              html: "Display",
-              switch: true,
-              onSwitch: function (item) {
-                item.tooltip = item.switch ? "Hide" : "Show";
-                art.subtitle.show = !item.switch;
-                return !item.switch;
-              },
-            },
-            ...subtitles.map((sub) => ({
-              default:
-                sub.label.toLowerCase() === "english" &&
-                sub === defaultEnglishSub,
-              html: sub.label,
-              url: sub.file,
-            })),
-          ],
-          onSelect: function (item) {
-            art.subtitle.switch(item.url, { name: item.html });
-            return item.html;
-          },
-        });
-      {
-        autoSkipIntro && art.plugins.add(autoSkip(ranges));
+
+      const subs = (subtitles || []).map((s) => ({ ...s }));
+
+      for (const sub of subs) {
+        const encodedUrl = encodeURIComponent(sub.file);
+        const encodedHeaders = encodeURIComponent(JSON.stringify(headers));
+        sub.file = `${proxy}${encodedUrl}&headers=${encodedHeaders}`;
       }
-      const defaultSubtitle = subtitles?.find(
-        (sub) => sub.label.toLowerCase() === "english"
-      );
+
+      const defaultSubtitle = subs?.find((sub) => sub.label.toLowerCase() === "english");
       if (defaultSubtitle) {
         art.subtitle.switch(defaultSubtitle.file, {
           name: defaultSubtitle.label,
           default: true,
         });
+      }
+
+      const skipRanges = [
+        ...(intro?.start != null && intro?.end != null ? [[intro.start + 1, intro.end - 1]] : []),
+        ...(outro?.start != null && outro?.end != null ? [[outro.start + 1, outro.end]] : []),
+      ];
+      autoSkipIntro && art.plugins.add(autoSkip(skipRanges));
+
+      const boundKeydown = (event) => handleKeydown(event, art);
+      boundKeydownRef.current = boundKeydown;
+      document.addEventListener("keydown", boundKeydown);
+
+      art.on("destroy", () => {
+        if (boundKeydownRef.current) {
+          document.removeEventListener("keydown", boundKeydownRef.current);
+          boundKeydownRef.current = null;
+        }
+      });
+
+      art.subtitle.style({
+        fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
+      });
+
+      if (thumbnail) {
+        art.plugins.add(
+          artplayerPluginVttThumbnail({
+            vtt: `${proxy}${thumbnail}`,
+          })
+        );
       }
       const $rewind = art.layers["rewind"];
       const $forward = art.layers["forward"];
@@ -490,14 +450,53 @@ export default function Player({
             art.layers["forwardIcon"].style.opacity = 0;
           }, 300);
         });
+
+      if (subs?.length > 0) {
+        const defaultEnglishSub =
+          subs.find((sub) => sub.label.toLowerCase() === "english" && sub.default) ||
+          subs.find((sub) => sub.label.toLowerCase() === "english");
+
+        art.setting.add({
+          name: "captions",
+          icon: captionIcon,
+          html: "Subtitle",
+          tooltip: defaultEnglishSub?.label || "default",
+          position: "right",
+          selector: [
+            {
+              html: "Display",
+              switch: true,
+              onSwitch: (item) => {
+                item.tooltip = item.switch ? "Hide" : "Show";
+                art.subtitle.show = !item.switch;
+                return !item.switch;
+              },
+            },
+            ...subs.map((sub) => ({
+              default: sub.label.toLowerCase() === "english" && sub === defaultEnglishSub,
+              html: sub.label,
+              url: sub.file,
+            })),
+          ],
+          onSelect: (item) => {
+            art.subtitle.switch(item.url, { name: item.html });
+            return item.html;
+          },
+        });
+      }
     });
+
     return () => {
       if (art && art.destroy) {
         art.destroy(false);
       }
-      const continueWatching =
-        JSON.parse(localStorage.getItem("continueWatching")) || [];
 
+      if (boundKeydownRef.current) {
+        document.removeEventListener("keydown", boundKeydownRef.current);
+        boundKeydownRef.current = null;
+      }
+
+      const continueWatching = JSON.parse(localStorage.getItem("continueWatching")) || [];
       const newEntry = {
         id: animeInfo?.id,
         data_id: animeInfo?.data_id,
@@ -507,22 +506,20 @@ export default function Player({
         poster: animeInfo?.poster,
         title: animeInfo?.title,
         japanese_title: animeInfo?.japanese_title,
+        leftAt: leftAtRef.current,
       };
-      if (!newEntry.data_id) return;
-      const existingIndex = continueWatching.findIndex(
-        (item) => item.data_id === newEntry.data_id
-      );
 
+      if (!newEntry.data_id) return;
+
+      const existingIndex = continueWatching.findIndex((item) => item.data_id === newEntry.data_id);
       if (existingIndex !== -1) {
         continueWatching[existingIndex] = newEntry;
       } else {
         continueWatching.push(newEntry);
       }
-      localStorage.setItem(
-        "continueWatching",
-        JSON.stringify(continueWatching)
-      );
+      localStorage.setItem("continueWatching", JSON.stringify(continueWatching));
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamUrl, subtitles, intro, outro]);
 
   return <div ref={artRef} className="w-full h-full"></div>;
