@@ -127,27 +127,87 @@ export default function Watch() {
     }
   }, [streamInfo, episodeId, animeId, totalEpisodes, navigate]);
 
+  // useEffect(() => {
+  //   const adjustHeight = () => {
+  //     if (window.innerWidth > 1200) {
+  //       const player = document.querySelector(".player");
+  //       const episodes = document.querySelector(".episodes");
+  //       if (player && episodes) {
+  //         episodes.style.height = `${player.clientHeight}px`;
+  //       }
+  //     } else {
+  //       const episodes = document.querySelector(".episodes");
+  //       if (episodes) {
+  //         episodes.style.height = "auto";
+  //       }
+  //     }
+  //   };
+  //   adjustHeight();
+  //   window.addEventListener("resize", adjustHeight);
+  //   return () => {
+  //     window.removeEventListener("resize", adjustHeight);
+  //   };
+  // },[]);
+
   useEffect(() => {
-    const adjustHeight = () => {
-      if (window.innerWidth > 1200) {
-        const player = document.querySelector(".player");
-        const episodes = document.querySelector(".episodes");
-        if (player && episodes) {
-          episodes.style.height = `${player.clientHeight}px`;
+    let ro = null;
+    let mo = null;
+
+    const episodesEl = () => document.querySelector(".episodes");
+    const playerEl = () => document.querySelector(".player");
+
+    const applyHeight = () => {
+      window.requestAnimationFrame(() => {
+        const p = playerEl();
+        const e = episodesEl();
+        if (!e || !p) return;
+
+        if (window.innerWidth > 1200) {
+          const height = Math.ceil(p.getBoundingClientRect().height);
+          e.style.height = `${height}px`;
+          e.style.minHeight = `${height}px`;
+        } else {
+          e.style.height = "auto";
+          e.style.minHeight = "auto";
+        }
+      });
+    };
+
+    const ensureAndApply = () => {
+      if (playerEl() && episodesEl()) {
+        applyHeight();
+        if (window.ResizeObserver) {
+          ro = new ResizeObserver(applyHeight);
+          ro.observe(playerEl());
+        } else {
+          window.addEventListener("resize", applyHeight);
+          mo = new MutationObserver(applyHeight);
+          mo.observe(playerEl(), { attributes: true, childList: true, subtree: true });
         }
       } else {
-        const episodes = document.querySelector(".episodes");
-        if (episodes) {
-          episodes.style.height = "auto";
-        }
+        const t = setTimeout(() => {
+          clearTimeout(t);
+          if (playerEl() && episodesEl()) {
+            ensureAndApply();
+          } else {
+            applyHeight();
+          }
+        }, 120);
       }
     };
-    adjustHeight();
-    window.addEventListener("resize", adjustHeight);
+
+    ensureAndApply();
+
+    const onWindowResize = () => applyHeight();
+    window.addEventListener("orientationchange", onWindowResize);
+
     return () => {
-      window.removeEventListener("resize", adjustHeight);
+      window.removeEventListener("orientationchange", onWindowResize);
+      if (ro) ro.disconnect();
+      if (mo) mo.disconnect();
+      window.removeEventListener("resize", applyHeight);
     };
-  },[]);
+  }, [buffering, episodes]);
 
   useEffect(() => {
     setTags([
