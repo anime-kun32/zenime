@@ -23,6 +23,21 @@ import Voiceactor from "@/src/components/voiceactor/Voiceactor";
 import Watchcontrols from "@/src/components/watchcontrols/Watchcontrols";
 import useWatchControl from "@/src/hooks/useWatchControl";
 
+function Tag({ bgColor, index, icon, text }) {
+    return (
+      <div
+        className={`flex space-x-1 justify-center items-center px-[4px] py-[1px] text-black font-semibold text-[13px] ${
+          index === 0 ? "rounded-l-[4px]" : "rounded-none"
+        }`}
+        style={{ backgroundColor: bgColor }}
+      >
+        {icon && <FontAwesomeIcon icon={icon} className="text-[12px]" />}
+        <p className="text-[12px]">{text}</p>
+      </div>
+    );
+  }
+
+
 export default function Watch() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -132,21 +147,7 @@ export default function Watch() {
     return () => {
       window.removeEventListener("resize", adjustHeight);
     };
-  });
-
-  function Tag({ bgColor, index, icon, text }) {
-    return (
-      <div
-        className={`flex space-x-1 justify-center items-center px-[4px] py-[1px] text-black font-semibold text-[13px] ${
-          index === 0 ? "rounded-l-[4px]" : "rounded-none"
-        }`}
-        style={{ backgroundColor: bgColor }}
-      >
-        {icon && <FontAwesomeIcon icon={icon} className="text-[12px]" />}
-        <p className="text-[12px]">{text}</p>
-      </div>
-    );
-  }
+  },[]);
 
   useEffect(() => {
     setTags([

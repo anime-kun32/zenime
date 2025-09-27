@@ -1,6 +1,8 @@
+/* eslint-disable no-empty */
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
 import Hls from "hls.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Artplayer from "artplayer";
 import artplayerPluginChapter from "./artPlayerPluinChaper";
 import autoSkip from "./autoSkip";
@@ -44,6 +46,8 @@ const KEY_CODES = {
   ARROW_LEFT: "ArrowLeft",
 };
 
+const MAX_CONTINUE_WATCHING = 50;
+
 export default function Player({
   streamUrl,
   subtitles,
@@ -62,14 +66,49 @@ export default function Player({
 }) {
   const artRef = useRef(null);
   const leftAtRef = useRef(0);
-  const boundKeydownRef = useRef(null); 
-  const proxy = import.meta.env.VITE_PROXY_URL;
+  const boundKeydownRef = useRef(null);
+  const logoTimeoutRef = useRef(null);
+  const timeupdateHandlerRef = useRef(null);
+  const hlsRef = useRef(null);
+
+  const currentEpisodeIndexRef = useRef(null);
+  const playNextRef = useRef(playNext);
+  const autoNextRef = useRef(autoNext);
+  const episodesRef = useRef(episodes);
+  const episodeIdRef = useRef(episodeId);
+  const animeInfoRef = useRef(animeInfo);
   const m3u8proxy = import.meta.env.VITE_M3U8_PROXY_URL?.split(",") || [];
+  const proxy = import.meta.env.VITE_PROXY_URL;
+
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(
     episodes?.findIndex(
       (episode) => episode.id.match(/ep=(\d+)/)?.[1] === episodeId
     )
   );
+
+  useEffect(() => {
+    currentEpisodeIndexRef.current = currentEpisodeIndex;
+  }, [currentEpisodeIndex]);
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
+
+  useEffect(() => {
+    autoNextRef.current = autoNext;
+  }, [autoNext]);
+
+  useEffect(() => {
+    episodesRef.current = episodes;
+  }, [episodes]);
+
+  useEffect(() => {
+    episodeIdRef.current = episodeId;
+  }, [episodeId]);
+
+  useEffect(() => {
+    animeInfoRef.current = animeInfo;
+  }, [animeInfo]);
 
   useEffect(() => {
     if (episodes?.length > 0) {
@@ -80,78 +119,115 @@ export default function Player({
     }
   }, [episodeId, episodes]);
 
-  useEffect(() => {
-    const applyChapterStyles = () => {
-      const existingStyles = document.querySelectorAll(
-        "style[data-chapter-styles]"
-      );
-      existingStyles.forEach((style) => style.remove());
-      const styleElement = document.createElement("style");
-      styleElement.setAttribute("data-chapter-styles", "true");
-      const styles = getChapterStyles(intro, outro);
-      styleElement.textContent = styles;
-      document.head.appendChild(styleElement);
-      return () => {
-        styleElement.remove();
-      };
-    };
+  const chapterStyles = useMemo(() => getChapterStyles(intro, outro), [intro, outro]);
 
-    if (streamUrl || intro || outro) {
-      const cleanup = applyChapterStyles();
-      return cleanup;
+  useEffect(() => {
+    const existingStyles = document.querySelectorAll("style[data-chapter-styles]");
+    existingStyles.forEach((style) => style.remove());
+
+    const styleElement = document.createElement("style");
+    styleElement.setAttribute("data-chapter-styles", "true");
+    styleElement.textContent = chapterStyles;
+    document.head.appendChild(styleElement);
+
+    return () => {
+      try {
+        styleElement.remove();
+      } catch (e) {}
+    };
+  }, [chapterStyles, streamUrl, intro, outro]);
+
+  const proxiedSubtitles = useMemo(() => {
+    try {
+      const iframeUrl = streamInfo?.streamingLink?.iframe;
+      const headers = {
+        referer: iframeUrl ? new URL(iframeUrl).origin + "/" : window.location.origin + "/",
+      };
+      return (subtitles || []).map((s) => {
+        const encodedUrl = encodeURIComponent(s.file);
+        const encodedHeaders = encodeURIComponent(JSON.stringify(headers));
+        return { ...s, file: `${proxy}${encodedUrl}&headers=${encodedHeaders}` };
+      });
+    } catch (err) {
+      return (subtitles || []).map((s) => ({ ...s }));
     }
-  }, [streamUrl, intro, outro]);
+  }, [subtitles, streamInfo, proxy]);
+
+  const pickM3u8Proxy = () => {
+    if (Array.isArray(m3u8proxy) && m3u8proxy.length > 0) {
+      return m3u8proxy[Math.floor(Math.random() * m3u8proxy.length)];
+    }
+    return proxy || "";
+  };
 
   const playM3u8 = (video, url, art) => {
+    try {
+      if (timeupdateHandlerRef.current && video) {
+        video.removeEventListener("timeupdate", timeupdateHandlerRef.current);
+        timeupdateHandlerRef.current = null;
+      }
+    } catch (e) {}
+
+    const onTimeUpdate = () => {
+      const currentTime = Math.round(video.currentTime || 0);
+      const duration = Math.round(video.duration || 0);
+      if (duration > 0 && currentTime >= duration) {
+        try {
+          art.pause();
+        } catch (e) {}
+        const idx = currentEpisodeIndexRef.current;
+        const eps = episodesRef.current;
+        if (idx != null && eps && idx < eps.length - 1 && autoNextRef.current) {
+          const nextEpId = eps[idx + 1].id.match(/ep=(\d+)/)?.[1];
+          if (nextEpId) {
+            try {
+              playNextRef.current(nextEpId);
+            } catch (e) {}
+          }
+        }
+      }
+    };
+
+    timeupdateHandlerRef.current = onTimeUpdate;
+    video.addEventListener("timeupdate", onTimeUpdate);
+
     if (Hls.isSupported()) {
-      if (art.hls) art.hls.destroy();
+      try {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      } catch (e) {}
+
       const hls = new Hls();
+      hlsRef.current = hls;
       hls.loadSource(url);
       hls.attachMedia(video);
-      art.hls = hls;
 
-      art.on("destroy", () => hls.destroy());
-
-      video.addEventListener("timeupdate", () => {
-        const currentTime = Math.round(video.currentTime);
-        const duration = Math.round(video.duration);
-        if (duration > 0 && currentTime >= duration) {
-          art.pause();
-          if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
-            playNext(
-              episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
-            );
+      art.on("destroy", () => {
+        try {
+          hls.destroy();
+        } catch (e) {}
+        try {
+          if (timeupdateHandlerRef.current && video) {
+            video.removeEventListener("timeupdate", timeupdateHandlerRef.current);
+            timeupdateHandlerRef.current = null;
           }
-        }
+        } catch (e) {}
       });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    } else if (video.canPlayType && video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
-      video.addEventListener("timeupdate", () => {
-        const currentTime = Math.round(video.currentTime);
-        const duration = Math.round(video.duration);
-        if (duration > 0 && currentTime >= duration) {
-          art.pause();
-          if (currentEpisodeIndex < episodes?.length - 1 && autoNext) {
-            playNext(
-              episodes[currentEpisodeIndex + 1].id.match(/ep=(\d+)/)?.[1]
-            );
+      art.on("destroy", () => {
+        try {
+          if (timeupdateHandlerRef.current && video) {
+            video.removeEventListener("timeupdate", timeupdateHandlerRef.current);
+            timeupdateHandlerRef.current = null;
           }
-        }
+        } catch (e) {}
       });
     } else {
       console.log("Unsupported playback format: m3u8");
     }
-  };
-
-  const createChapters = () => {
-    const chapters = [];
-    if (intro?.start !== 0 || intro?.end !== 0) {
-      chapters.push({ start: intro.start, end: intro.end, title: "intro" });
-    }
-    if (outro?.start !== 0 || outro?.end !== 0) {
-      chapters.push({ start: outro.start, end: outro.end, title: "outro" });
-    }
-    return chapters;
   };
 
   const handleKeydown = (event, art) => {
@@ -213,18 +289,19 @@ export default function Player({
 
     const iframeUrl = streamInfo?.streamingLink?.iframe;
     const headers = {
-      referer: new URL(iframeUrl).origin + "/",
+      referer: iframeUrl ? new URL(iframeUrl).origin + "/" : window.location.origin + "/",
     };
 
+    const proxyPrefix = pickM3u8Proxy();
+
+    const proxiedM3u8Url =
+      (proxyPrefix || "") + encodeURIComponent(streamUrl) + "&headers=" + encodeURIComponent(JSON.stringify(headers));
+
     const art = new Artplayer({
-      url:
-        m3u8proxy[Math.floor(Math.random() * m3u8proxy?.length)] +
-        encodeURIComponent(streamUrl) +
-        "&headers=" +
-        encodeURIComponent(JSON.stringify(headers)),
+      url: proxiedM3u8Url,
       container: artRef.current,
       type: "m3u8",
-      autoplay: autoPlay,
+      autoplay: !!autoPlay,
       volume: 1,
       setting: true,
       playbackRate: true,
@@ -253,7 +330,7 @@ export default function Player({
           },
         }),
         artplayerPluginUploadSubtitle(),
-        artplayerPluginChapter({ chapters: createChapters() }),
+        artplayerPluginChapter({ chapters: createChaptersFrom(intro, outro) }),
       ],
       subtitle: {
         style: {
@@ -370,86 +447,108 @@ export default function Player({
     });
 
     art.on("resize", () => {
-      art.subtitle.style({
-        fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
-      });
+      try {
+        art.subtitle.style({
+          fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
+        });
+      } catch (e) {}
     });
 
     art.on("ready", () => {
-      const continueWatchingList = JSON.parse(localStorage.getItem("continueWatching")) || [];
-      const currentEntry = continueWatchingList.find((item) => item.episodeId === episodeId);
-      if (currentEntry?.leftAt) art.currentTime = currentEntry.leftAt;
+      try {
+        const continueWatchingList = JSON.parse(localStorage.getItem("continueWatching")) || [];
+        const currentEntry = continueWatchingList.find((item) => item.episodeId === episodeId);
+        if (currentEntry?.leftAt) art.currentTime = currentEntry.leftAt;
+      } catch (e) {}
 
-      art.on("video:timeupdate", () => {
-        leftAtRef.current = Math.floor(art.currentTime);
-      });
+      const onPlayerTimeupdate = () => {
+        try {
+          leftAtRef.current = Math.floor(art.currentTime);
+        } catch (e) {}
+      };
 
-      setTimeout(() => {
-        art.layers[website_name].style.opacity = 0;
-      }, 2000);
+      art.on("video:timeupdate", onPlayerTimeupdate);
+      art._playerTimeupdateHandler = onPlayerTimeupdate;
 
-      const subs = (subtitles || []).map((s) => ({ ...s }));
+      try {
+        if (logoTimeoutRef.current) {
+          clearTimeout(logoTimeoutRef.current);
+          logoTimeoutRef.current = null;
+        }
+        logoTimeoutRef.current = setTimeout(() => {
+          try {
+            art.layers[website_name].style.opacity = 0;
+          } catch (e) {}
+          logoTimeoutRef.current = null;
+        }, 2000);
+      } catch (e) {}
 
-      for (const sub of subs) {
-        const encodedUrl = encodeURIComponent(sub.file);
-        const encodedHeaders = encodeURIComponent(JSON.stringify(headers));
-        sub.file = `${proxy}${encodedUrl}&headers=${encodedHeaders}`;
-      }
+      const subs = (proxiedSubtitles || []).map((s) => ({ ...s }));
 
-      const defaultSubtitle = subs?.find((sub) => sub.label.toLowerCase() === "english");
+      const defaultSubtitle = subs?.find((sub) => sub.label && sub.label.toLowerCase() === "english");
       if (defaultSubtitle) {
-        art.subtitle.switch(defaultSubtitle.file, {
-          name: defaultSubtitle.label,
-          default: true,
-        });
+        try {
+          art.subtitle.switch(defaultSubtitle.file, {
+            name: defaultSubtitle.label,
+            default: true,
+          });
+        } catch (e) {}
       }
 
       const skipRanges = [
         ...(intro?.start != null && intro?.end != null ? [[intro.start + 1, intro.end - 1]] : []),
         ...(outro?.start != null && outro?.end != null ? [[outro.start + 1, outro.end]] : []),
       ];
-      autoSkipIntro && art.plugins.add(autoSkip(skipRanges));
+      if (autoSkipIntro && skipRanges.length > 0) {
+        try {
+          const plugin = autoSkip(skipRanges);
+          art.plugins.add(plugin);
+        } catch (e) {
+          console.warn("autoSkip plugin failed to add", e);
+        }
+      }
 
       const boundKeydown = (event) => handleKeydown(event, art);
       boundKeydownRef.current = boundKeydown;
       document.addEventListener("keydown", boundKeydown);
 
       art.on("destroy", () => {
-        if (boundKeydownRef.current) {
-          document.removeEventListener("keydown", boundKeydownRef.current);
-          boundKeydownRef.current = null;
-        }
-      });
+        try {
+          if (boundKeydownRef.current) {
+            document.removeEventListener("keydown", boundKeydownRef.current);
+            boundKeydownRef.current = null;
+          }
+        } catch (e) {}
 
-      art.subtitle.style({
-        fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
-      });
+        try {
+          if (logoTimeoutRef.current) {
+            clearTimeout(logoTimeoutRef.current);
+            logoTimeoutRef.current = null;
+          }
+        } catch (e) {}
 
-      if (thumbnail) {
-        art.plugins.add(
-          artplayerPluginVttThumbnail({
-            vtt: `${proxy}${thumbnail}`,
-          })
-        );
-      }
-      const $rewind = art.layers["rewind"];
-      const $forward = art.layers["forward"];
-      Artplayer.utils.isMobile &&
-        art.proxy($rewind, "dblclick", () => {
-          art.currentTime = Math.max(0, art.currentTime - 10);
-          art.layers["backwardIcon"].style.opacity = 1;
-          setTimeout(() => {
-            art.layers["backwardIcon"].style.opacity = 0;
-          }, 300);
-        });
-      Artplayer.utils.isMobile &&
-        art.proxy($forward, "dblclick", () => {
-          art.currentTime = Math.max(0, art.currentTime + 10);
-          art.layers["forwardIcon"].style.opacity = 1;
-          setTimeout(() => {
-            art.layers["forwardIcon"].style.opacity = 0;
-          }, 300);
-        });
+        try {
+          if (art._playerTimeupdateHandler && art.off) {
+            art.off("video:timeupdate", art._playerTimeupdateHandler);
+            art._playerTimeupdateHandler = null;
+          }
+        } catch (e) {}
+
+        try {
+          const videoEl = art.video;
+          if (timeupdateHandlerRef.current && videoEl) {
+            videoEl.removeEventListener("timeupdate", timeupdateHandlerRef.current);
+            timeupdateHandlerRef.current = null;
+          }
+        } catch (e) {}
+
+        try {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+          }
+        } catch (e) {}
+      });
 
       if (subs?.length > 0) {
         const defaultEnglishSub =
@@ -479,51 +578,112 @@ export default function Player({
             })),
           ],
           onSelect: (item) => {
-            art.subtitle.switch(item.url, { name: item.html });
+            try {
+              art.subtitle.switch(item.url, { name: item.html });
+            } catch (e) {}
             return item.html;
           },
         });
       }
+
+      if (thumbnail) {
+        try {
+          art.plugins.add(
+            artplayerPluginVttThumbnail({
+              vtt: `${proxy}${thumbnail}`,
+            })
+          );
+        } catch (e) {}
+      }
+
+      const $rewind = art.layers["rewind"];
+      const $forward = art.layers["forward"];
+      if (Artplayer.utils.isMobile && $rewind) {
+        art.proxy($rewind, "dblclick", () => {
+          try {
+            art.currentTime = Math.max(0, art.currentTime - 10);
+            art.layers["backwardIcon"].style.opacity = 1;
+            setTimeout(() => {
+              try {
+                art.layers["backwardIcon"].style.opacity = 0;
+              } catch (e) {}
+            }, 300);
+          } catch (e) {}
+        });
+      }
+      if (Artplayer.utils.isMobile && $forward) {
+        art.proxy($forward, "dblclick", () => {
+          try {
+            art.currentTime = Math.max(0, art.currentTime + 10);
+            art.layers["forwardIcon"].style.opacity = 1;
+            setTimeout(() => {
+              try {
+                art.layers["forwardIcon"].style.opacity = 0;
+              } catch (e) {}
+            }, 300);
+          } catch (e) {}
+        });
+      }
     });
 
-   return () => {
-    if (art && art.destroy) {
-      art.destroy(false);
-    }
+    // ensure subtitle styling is set at start
+    art.subtitle.style({
+      fontSize: (art.width > 500 ? art.width * 0.02 : art.width * 0.03) + "px",
+    });
 
-    if (boundKeydownRef.current) {
-      document.removeEventListener("keydown", boundKeydownRef.current);
-      boundKeydownRef.current = null;
-    }
+    // cleanup when effect re-runs or component unmounts
+    return () => {
+      try {
+        if (art && art.destroy) {
+          art.destroy(false);
+        }
+      } catch (e) {}
 
-    try {
-      const continueWatching = JSON.parse(localStorage.getItem("continueWatching")) || [];
-      const newEntry = {
-        id: animeInfo?.id,
-        data_id: animeInfo?.data_id,
-        episodeId,
-        episodeNum,
-        adultContent: animeInfo?.adultContent,
-        poster: animeInfo?.poster,
-        title: animeInfo?.title,
-        japanese_title: animeInfo?.japanese_title,
-        leftAt: leftAtRef.current,
-        updatedAt: Date.now(), 
-      };
+      try {
+        if (boundKeydownRef.current) {
+          document.removeEventListener("keydown", boundKeydownRef.current);
+          boundKeydownRef.current = null;
+        }
+      } catch (e) {}
 
-      if (!newEntry.data_id) return;
+      try {
+        const continueWatching = JSON.parse(localStorage.getItem("continueWatching")) || [];
+        const newEntry = {
+          id: animeInfoRef.current?.id,
+          data_id: animeInfoRef.current?.data_id,
+          episodeId,
+          episodeNum,
+          adultContent: animeInfoRef.current?.adultContent,
+          poster: animeInfoRef.current?.poster,
+          title: animeInfoRef.current?.title,
+          japanese_title: animeInfoRef.current?.japanese_title,
+          leftAt: leftAtRef.current,
+          updatedAt: Date.now(),
+        };
 
-      const filtered = continueWatching.filter((item) => item.data_id !== newEntry.data_id);
-
-      filtered.unshift(newEntry);
-
-      localStorage.setItem("continueWatching", JSON.stringify(filtered));
-    } catch (err) {
-      console.error("Failed to save continueWatching:", err);
-    }
-  };
+        if (newEntry.data_id) {
+          const filtered = continueWatching.filter((item) => item.data_id !== newEntry.data_id);
+          filtered.unshift(newEntry);
+          const limited = filtered.slice(0, MAX_CONTINUE_WATCHING);
+          localStorage.setItem("continueWatching", JSON.stringify(limited));
+        }
+      } catch (err) {
+        console.error("Failed to save continueWatching:", err);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamUrl, subtitles, intro, outro]);
 
-  return <div ref={artRef} className="w-full h-full"></div>;
+  function createChaptersFrom(introObj, outroObj) {
+    const chapters = [];
+    if (introObj && (introObj.start !== 0 || introObj.end !== 0)) {
+      chapters.push({ start: introObj.start, end: introObj.end, title: "intro" });
+    }
+    if (outroObj && (outroObj.start !== 0 || outroObj.end !== 0)) {
+      chapters.push({ start: outroObj.start, end: outroObj.end, title: "outro" });
+    }
+    return chapters;
+  }
+
+  return <div ref={artRef} className="w-full h-full" />;
 }
