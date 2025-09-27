@@ -486,16 +486,17 @@ export default function Player({
       }
     });
 
-    return () => {
-      if (art && art.destroy) {
-        art.destroy(false);
-      }
+   return () => {
+    if (art && art.destroy) {
+      art.destroy(false);
+    }
 
-      if (boundKeydownRef.current) {
-        document.removeEventListener("keydown", boundKeydownRef.current);
-        boundKeydownRef.current = null;
-      }
+    if (boundKeydownRef.current) {
+      document.removeEventListener("keydown", boundKeydownRef.current);
+      boundKeydownRef.current = null;
+    }
 
+    try {
       const continueWatching = JSON.parse(localStorage.getItem("continueWatching")) || [];
       const newEntry = {
         id: animeInfo?.id,
@@ -507,18 +508,20 @@ export default function Player({
         title: animeInfo?.title,
         japanese_title: animeInfo?.japanese_title,
         leftAt: leftAtRef.current,
+        updatedAt: Date.now(), 
       };
 
       if (!newEntry.data_id) return;
 
-      const existingIndex = continueWatching.findIndex((item) => item.data_id === newEntry.data_id);
-      if (existingIndex !== -1) {
-        continueWatching[existingIndex] = newEntry;
-      } else {
-        continueWatching.push(newEntry);
-      }
-      localStorage.setItem("continueWatching", JSON.stringify(continueWatching));
-    };
+      const filtered = continueWatching.filter((item) => item.data_id !== newEntry.data_id);
+
+      filtered.unshift(newEntry);
+
+      localStorage.setItem("continueWatching", JSON.stringify(filtered));
+    } catch (err) {
+      console.error("Failed to save continueWatching:", err);
+    }
+  };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamUrl, subtitles, intro, outro]);
 
