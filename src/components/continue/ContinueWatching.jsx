@@ -17,6 +17,7 @@ const ContinueWatching = () => {
 
   useEffect(() => {
     const data = JSON.parse(localStorage.getItem("continueWatching") || "[]");
+    data.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     setWatchList(data);
   }, []);
 
@@ -88,7 +89,7 @@ const ContinueWatching = () => {
                 </button>
 
                 <Link
-                  to={`/watch/${item?.id}?ep=${item.episodeId}`}
+                  to={`/playing/${item?.id}?ep=${item.episodeId}`}
                   className="inline-block bg-[#2a2c31] absolute left-0 top-0 w-full h-full group"
                 >
                   <img

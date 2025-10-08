@@ -121,8 +121,16 @@ const CategoryCard = React.memo(
                 >
                   <div
                     className="w-full relative group hover:cursor-pointer"
-                    onClick={() => navigate(`/watch/${item.id}`)}
-                    onMouseEnter={() => handleMouseEnter(item,index)}
+                    onClick={() =>
+                      navigate(
+                        `${
+                          path === "top-upcoming"
+                            ? `/${item.id}`
+                            : `/watch/${item.id}`
+                        }`
+                      )
+                    }
+                    onMouseEnter={() => handleMouseEnter(item, index)}
                     onMouseLeave={handleMouseLeave}
                   >
                     {hoveredItem === item.id + index && showPlay && (
@@ -135,7 +143,7 @@ const CategoryCard = React.memo(
                     <div className="overlay"></div>
                     <div className="overflow-hidden">
                       <img
-                        src={`https://wsrv.nl/?url=${item.poster}`}
+                        src={`${item.poster}`}
                         alt={item.title}
                         className={`w-full h-[320px] object-cover max-[1200px]:h-[35vw] max-[758px]:h-[45vw] max-[478px]:h-[60vw] group-hover:blur-[7px] transform transition-all duration-300 ease-in-out ultra-wide:h-[400px] ${cardStyle}`}
                       />
@@ -229,7 +237,15 @@ const CategoryCard = React.memo(
               >
                 <div
                   className="w-full relative group hover:cursor-pointer"
-                  onClick={() => navigate(`/watch/${item.id}`)}
+                  onClick={() =>
+                    navigate(
+                      `${
+                        path === "top-upcoming"
+                          ? `/${item.id}`
+                          : `/watch/${item.id}`
+                      }`
+                    )
+                  }
                   onMouseEnter={() => handleMouseEnter(item, index)}
                   onMouseLeave={handleMouseLeave}
                 >
@@ -242,7 +258,7 @@ const CategoryCard = React.memo(
                   <div className="overlay"></div>
                   <div className="overflow-hidden">
                     <img
-                      src={`https://wsrv.nl/?url=${item.poster}`}
+                      src={`${item.poster}`}
                       alt={item.title}
                       className={`w-full h-[250px] object-cover max-[1200px]:h-[35vw] max-[758px]:h-[45vw] max-[478px]:h-[60vw] ${cardStyle} group-hover:blur-[7px] transform transition-all duration-300 ease-in-out `}
                     />

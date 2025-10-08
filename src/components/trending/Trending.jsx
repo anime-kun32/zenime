@@ -35,7 +35,6 @@ const Trending = ({ trending }) => {
               <SwiperSlide
                 key={idx}
                 className="text-center flex text-[18px] justify-center items-center"
-                onClick={() => navigate(`/watch/${item.id}`)}
               >
                 <div className="w-full h-auto pb-[115%] relative inline-block overflow-hidden max-[575px]:pb-[150%]">
                   <div className="absolute left-0 top-0 bottom-0 overflow-hidden w-[40px] text-center font-semibold bg-[#201F31] max-[575px]:top-0 max-[575px]:h-[30px] max-[575px]:z-[9] max-[575px]:bg-white">
@@ -51,7 +50,7 @@ const Trending = ({ trending }) => {
                     className="inline-block bg-[#2a2c31] absolute w-auto left-[40px] right-0 top-0 bottom-0 max-[575px]:left-0 max-[575px]:top-0 max-[575px]:bottom-0"
                   >
                     <img
-                      src={`https://wsrv.nl/?url=${item.poster}`}
+                      src={`${item.poster}`}
                       alt={item.title}
                       className="block w-full h-full object-cover hover:cursor-pointer"
                       title={item.title}

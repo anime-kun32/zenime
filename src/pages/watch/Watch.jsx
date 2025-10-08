@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/src/context/LanguageContext";
@@ -21,6 +22,21 @@ import SidecardLoader from "@/src/components/Loader/Sidecard.loader";
 import Voiceactor from "@/src/components/voiceactor/Voiceactor";
 import Watchcontrols from "@/src/components/watchcontrols/Watchcontrols";
 import useWatchControl from "@/src/hooks/useWatchControl";
+
+function Tag({ bgColor, index, icon, text }) {
+    return (
+      <div
+        className={`flex space-x-1 justify-center items-center px-[4px] py-[1px] text-black font-semibold text-[13px] ${
+          index === 0 ? "rounded-l-[4px]" : "rounded-none"
+        }`}
+        style={{ backgroundColor: bgColor }}
+      >
+        {icon && <FontAwesomeIcon icon={icon} className="text-[12px]" />}
+        <p className="text-[12px]">{text}</p>
+      </div>
+    );
+  }
+
 
 export default function Watch() {
   const location = useLocation();
@@ -66,28 +82,33 @@ export default function Watch() {
     autoNext,
     setAutoNext,
   } = useWatchControl();
-  // Set episodeId to first episode if not provided in URL
-  useEffect(() => {
-    if (!episodeId && episodes && episodes.length > 0) {
-      const firstEpisodeId = episodes[0].id.match(/ep=(\d+)/)?.[1];
-      setEpisodeId(firstEpisodeId);
-    }
-  }, [episodes, episodeId]);
 
-  // Handle URL updates when episodeId changes
   useEffect(() => {
-    if (episodeId) {
-      const newUrl = `/watch/${animeId}?ep=${episodeId}`;
-      if (isFirstSet.current) {
-        // Initial load: replace history entry
-        navigate(newUrl, { replace: true });
-        isFirstSet.current = false;
-      } else {
-        // Subsequent changes: push new history entry
-        navigate(newUrl);
+    if (!episodes || episodes.length === 0) return;
+    
+    const isValidEpisode = episodes.some(ep => {
+      const epNumber = ep.id.split('ep=')[1];
+      return epNumber === episodeId; 
+    });
+    
+    // If missing or invalid episodeId, fallback to first
+    if (!episodeId || !isValidEpisode) {
+      const fallbackId = episodes[0].id.match(/ep=(\d+)/)?.[1];
+      if (fallbackId && fallbackId !== episodeId) {
+        setEpisodeId(fallbackId);
       }
+      return;
     }
-  }, [episodeId, animeId, navigate]);
+  
+    const newUrl = `/watch/${animeId}?ep=${episodeId}`;
+    if (isFirstSet.current) {
+      navigate(newUrl, { replace: true });
+      isFirstSet.current = false;
+    } else {
+      navigate(newUrl);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episodeId, animeId, navigate, episodes]);
 
   // Update document title
   useEffect(() => {
@@ -106,41 +127,87 @@ export default function Watch() {
     }
   }, [streamInfo, episodeId, animeId, totalEpisodes, navigate]);
 
+  // useEffect(() => {
+  //   const adjustHeight = () => {
+  //     if (window.innerWidth > 1200) {
+  //       const player = document.querySelector(".player");
+  //       const episodes = document.querySelector(".episodes");
+  //       if (player && episodes) {
+  //         episodes.style.height = `${player.clientHeight}px`;
+  //       }
+  //     } else {
+  //       const episodes = document.querySelector(".episodes");
+  //       if (episodes) {
+  //         episodes.style.height = "auto";
+  //       }
+  //     }
+  //   };
+  //   adjustHeight();
+  //   window.addEventListener("resize", adjustHeight);
+  //   return () => {
+  //     window.removeEventListener("resize", adjustHeight);
+  //   };
+  // },[]);
+
   useEffect(() => {
-    const adjustHeight = () => {
-      if (window.innerWidth > 1200) {
-        const player = document.querySelector(".player");
-        const episodes = document.querySelector(".episodes");
-        if (player && episodes) {
-          episodes.style.height = `${player.clientHeight}px`;
+    let ro = null;
+    let mo = null;
+
+    const episodesEl = () => document.querySelector(".episodes");
+    const playerEl = () => document.querySelector(".player");
+
+    const applyHeight = () => {
+      window.requestAnimationFrame(() => {
+        const p = playerEl();
+        const e = episodesEl();
+        if (!e || !p) return;
+
+        if (window.innerWidth > 1200) {
+          const height = Math.ceil(p.getBoundingClientRect().height);
+          e.style.height = `${height}px`;
+          e.style.minHeight = `${height}px`;
+        } else {
+          e.style.height = "auto";
+          e.style.minHeight = "auto";
+        }
+      });
+    };
+
+    const ensureAndApply = () => {
+      if (playerEl() && episodesEl()) {
+        applyHeight();
+        if (window.ResizeObserver) {
+          ro = new ResizeObserver(applyHeight);
+          ro.observe(playerEl());
+        } else {
+          window.addEventListener("resize", applyHeight);
+          mo = new MutationObserver(applyHeight);
+          mo.observe(playerEl(), { attributes: true, childList: true, subtree: true });
         }
       } else {
-        const episodes = document.querySelector(".episodes");
-        if (episodes) {
-          episodes.style.height = "auto";
-        }
+        const t = setTimeout(() => {
+          clearTimeout(t);
+          if (playerEl() && episodesEl()) {
+            ensureAndApply();
+          } else {
+            applyHeight();
+          }
+        }, 120);
       }
     };
-    adjustHeight();
-    window.addEventListener("resize", adjustHeight);
-    return () => {
-      window.removeEventListener("resize", adjustHeight);
-    };
-  });
 
-  function Tag({ bgColor, index, icon, text }) {
-    return (
-      <div
-        className={`flex space-x-1 justify-center items-center px-[4px] py-[1px] text-black font-semibold text-[13px] ${
-          index === 0 ? "rounded-l-[4px]" : "rounded-none"
-        }`}
-        style={{ backgroundColor: bgColor }}
-      >
-        {icon && <FontAwesomeIcon icon={icon} className="text-[12px]" />}
-        <p className="text-[12px]">{text}</p>
-      </div>
-    );
-  }
+    ensureAndApply();
+
+    const onWindowResize = () => applyHeight();
+    window.addEventListener("orientationchange", onWindowResize);
+
+    return () => {
+      window.removeEventListener("orientationchange", onWindowResize);
+      if (ro) ro.disconnect();
+      if (mo) mo.disconnect();
+      window.removeEventListener("resize", applyHeight);
+    };
+  }, [buffering, episodes]);
 
   useEffect(() => {
     setTags([
@@ -174,7 +241,7 @@ export default function Watch() {
         <img
           src={
             !animeInfoLoading
-              ? `https://wsrv.nl/?url=${animeInfo?.poster}`
+              ? `${animeInfo?.poster}`
               : "https://i.postimg.cc/rFZnx5tQ/2-Kn-Kzog-md.webp"
           }
           alt={`${animeInfo?.title} Poster`}
@@ -310,7 +377,7 @@ export default function Watch() {
                         </p>
                         <div className="absolute inset-0 z-10 bg-[url('https://i.postimg.cc/pVGY6RXd/thumb.png')] bg-repeat"></div>
                         <img
-                          src={`https://wsrv.nl/?url=${season.season_poster}`}
+                          src={`${season.season_poster}`}
                           alt=""
                           className="w-full h-full object-cover blur-[3px] opacity-50"
                         />
@@ -357,7 +424,7 @@ export default function Watch() {
           <div className="flex flex-col gap-y-4 items-start ml-8 max-[1400px]:ml-0 max-[1400px]:mt-10 max-[1400px]:flex-row max-[1400px]:gap-x-6 max-[1024px]:px-[30px] max-[1024px]:mt-8 max-[500px]:mt-4 max-[500px]:px-4">
             {animeInfo && animeInfo?.poster ? (
               <img
-                src={`https://wsrv.nl/?url=${animeInfo?.poster}`}
+                src={`${animeInfo?.poster}`}
                 alt=""
                 className="w-[100px] h-[150px] object-cover max-[500px]:w-[70px] max-[500px]:h-[90px]"
               />

@@ -47,7 +47,7 @@ function Cart({ label, data, path }) {
               ref={(el) => (cardRefs.current[index] = el)}
             >
               <img
-                src={`https://wsrv.nl/?url=${item.poster}`}
+                src={`${item.poster}`}
                 alt={item.title}
                 className="flex-shrink-0 w-[60px] h-[75px] rounded-md object-cover cursor-pointer"
                 onClick={() => navigate(`/watch/${item.id}`)}

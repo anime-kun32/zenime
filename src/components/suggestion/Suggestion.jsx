@@ -55,7 +55,7 @@ function Suggestion({ keyword, className }) {
               }}
             >
               <img
-                src={`https://wsrv.nl/?url=${item.poster}`}
+                src={`${item.poster}`}
                 className="w-[50px] h-[75px] flex-shrink-0 object-cover"
                 alt=""
                 onError={(e) => {

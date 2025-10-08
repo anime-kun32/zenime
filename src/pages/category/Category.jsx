@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import getCategoryInfo from "@/src/utils/getCategoryInfo.utils";
 import CategoryCard from "@/src/components/categorycard/CategoryCard";
 import Genre from "@/src/components/genres/Genre";
 import Topten from "@/src/components/topten/Topten";
-import Loader from "@/src/components/Loader/Loader";
 import Error from "@/src/components/error/Error";
-import { useNavigate } from "react-router-dom";
 import { useHomeInfo } from "@/src/context/HomeInfoContext";
 import PageSlider from "@/src/components/pageslider/PageSlider";
 import SidecardLoader from "@/src/components/Loader/Sidecard.loader";
+import CategoryCardLoader from "@/src/components/Loader/CategoryCard.loader";
 
 function Category({ path, label }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -17,9 +16,11 @@ function Category({ path, label }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalPages, setTotalPages] = useState(0);
+
   const page = parseInt(searchParams.get("page")) || 1;
   const { homeInfo, homeInfoLoading } = useHomeInfo();
   const navigate = useNavigate();
+
   useEffect(() => {
     const fetchCategoryInfo = async () => {
       setLoading(true);
@@ -34,17 +35,18 @@ function Category({ path, label }) {
       }
     };
     fetchCategoryInfo();
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [path, page]);
-  if (loading) return <Loader type="category" />;
+
   if (error) {
     navigate("/error-page");
     return <Error />;
   }
-  if (!categoryInfo) {
+  if (!categoryInfo && !loading) {
     navigate("/404-not-found-page");
     return null;
   }
+
   const handlePageChange = (newPage) => {
     setSearchParams({ page: newPage });
   };
@@ -62,15 +64,18 @@ function Category({ path, label }) {
           <p className="text-[16px] text-white">to your friends</p>
         </div>
       </div>
-      {categoryInfo ? (
-        <div className="w-full px-4 grid grid-cols-[minmax(0,75%),minmax(0,25%)] gap-x-6 max-[1200px]:flex max-[1200px]:flex-col max-[1200px]:gap-y-10">
-          {page > totalPages ? (
+
+      <div className="w-full px-4 grid grid-cols-[minmax(0,75%),minmax(0,25%)] gap-x-6 max-[1200px]:flex max-[1200px]:flex-col max-[1200px]:gap-y-10">
+        <div>
+          {loading ? (
+            <CategoryCardLoader className="mt-5" />
+          ) : page > totalPages ? (
             <p className="font-bold text-2xl text-[#ffbade] max-[478px]:text-[18px] max-[300px]:leading-6">
               You came a long way, go back <br className="max-[300px]:hidden" />
               nothing is here
             </p>
           ) : (
-            <div>
+            <>
               {categoryInfo && categoryInfo.length > 0 && (
                 <CategoryCard
                   label={label.split("/").pop()}
@@ -78,6 +83,7 @@ function Category({ path, label }) {
                   showViewMore={false}
                   className={"mt-0"}
                   categoryPage={true}
+                  path={path}
                 />
               )}
               <PageSlider
@@ -85,24 +91,23 @@ function Category({ path, label }) {
                 totalPages={totalPages}
                 handlePageChange={handlePageChange}
               />
-            </div>
+            </>
           )}
-          <div className="w-full flex flex-col gap-y-10">
-            {homeInfoLoading ? (
-              <SidecardLoader />
-            ) : (
-              <>
-                {homeInfo && homeInfo.topten && (
-                  <Topten data={homeInfo.topten} className="mt-0" />
-                )}
-                {homeInfo?.genres && <Genre data={homeInfo.genres} />}
-              </>
-            )}
-          </div>
         </div>
-      ) : (
-        <Error />
-      )}
+
+        <div className="w-full flex flex-col gap-y-10">
+          {homeInfoLoading && !homeInfo ? (
+            <SidecardLoader />
+          ) : (
+            <>
+              {homeInfo?.topten && (
+                <Topten data={homeInfo.topten} className="mt-0" />
+              )}
+              {homeInfo?.genres && <Genre data={homeInfo.genres} />}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

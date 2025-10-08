@@ -58,11 +58,17 @@ function Search() {
                 <h1 className='font-bold text-2xl text-[#ffbade] max-[478px]:text-[18px]'>{`Search results for: ${keyword}`}</h1>
             )}
             <div className="w-full flex flex-col gap-y-10">
-                {homeInfoLoading ? (
+                {homeInfoLoading && !homeInfo ? (
                     <SidecardLoader />
                 ) : (
                     <>
-                        {homeInfo?.most_popular && <Sidecard data={homeInfo.most_popular} className="mt-0" label="Most Popular" />}
+                        {homeInfo?.most_popular && (
+                            <Sidecard
+                                data={homeInfo.most_popular}
+                                className="mt-0"
+                                label="Most Popular"
+                            />
+                        )}
                         {homeInfo?.genres && <Genre data={homeInfo.genres} />}
                     </>
                 )}

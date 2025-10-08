@@ -99,7 +99,7 @@ function Topten({ data, className }) {
               >
                 {/* Image with tooltip behavior */}
                 <img
-                  src={`https://wsrv.nl/?url=${item.poster}`}
+                  src={`${item.poster}`}
                   alt={item.title}
                   className="w-[60px] h-[75px] rounded-md object-cover flex-shrink-0 cursor-pointer"
                   onClick={() => navigate(`/watch/${item.id}`)}
